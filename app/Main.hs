@@ -2,6 +2,9 @@
 
 {-# HLINT ignore "Eta reduce" #-}
 
+import qualified System.Exit as Exit
+import Test.HUnit
+
 -- |
 -- Module      : Main
 -- Description : Provides operations for manipulating the Expr data type.
@@ -55,13 +58,64 @@ replAll e s = foldl (\a (targ, rule) -> repl a targ rule) e s
 -- | Simplifies the expression by evaluating constant subexpressions.
 simpl :: Expr -> Expr
 simpl expr = case expr of
+  -- Sum rules
+  Sum (Num 0) a -> simpl a
+  Sum a (Num 0) -> simpl a
+  Sum a b | a == b -> Prod (Num 2) (simpl a)
   Sum (Num a) (Num b) -> Num (a + b)
-  Neg (Num a) -> Num (-a)
-  Prod (Num a) (Num b) -> Num (a * b)
   Sum a b -> Sum (simpl a) (simpl b)
-  Neg a -> Neg (simpl a)
+  -- Product rules
+  Prod (Num 0) _ -> Num 0
+  Prod _ (Num 0) -> Num 0
+  Prod (Num 1) a -> simpl a
+  Prod a (Num 1) -> simpl a
+  Prod (Num a) (Num b) -> Num (a * b)
+  Prod a b | a == b -> Pow (simpl a) (Num 2)
   Prod a b -> Prod (simpl a) (simpl b)
+  -- Power rules
+  Pow _ (Num 0) -> Num 1 -- x^0 = 1 (for x > 0)
+  Pow a (Num 1) -> simpl a -- x^1 = x
+  Pow (Num 1) _ -> Num 1 -- 1^x = 1
+  Pow base (Num n)
+    | n == 0 -> Num 1 -- x^0 = 1
+    | n == 1 -> simpl base -- x^1 = x
+  Pow (Num 0) _ -> Num 0 -- TODO: 0^x = 0 (for x > 0)
+  Pow (Num a) (Num b) -> Num (a ** b) -- (a^b) = a^b
+  Pow base expo -> Pow (simpl base) (simpl expo) -- Simplify base and exponent recursively
+  -- Negation rules
+  Neg (Num x) -> Num (-x) -- Simplify negation of a numeric constant
+  Neg (Neg a) -> simpl a -- Double negation simplification
+  Neg (Sum a b) -> Sum (simpl (Neg a)) (simpl (Neg b)) -- Distribute negation over sum
+  Neg (Prod a b) -> Prod (simpl (Neg a)) (simpl (Neg b)) -- Distribute negation over product
+  Neg (Pow a b) -> Pow (simpl (Neg a)) (simpl b) -- Distribute negation over base of power
+  Neg (Inv a) -> Inv (simpl (Neg a)) -- Distribute negation over inversion
+  Neg v -> Neg (simpl v)
   _ -> expr
+
+testSimplRep :: Test
+testSimplRep =
+  TestList
+    [ TestCase $ do
+        let expected = Num 42
+        let actual = simplRep (Num 42)
+        assertEqual "Simplification of a numeric constant" expected actual,
+      TestCase $ do
+        let expected = Num 5
+        let actual = simplRep (Sum (Num 5) (Num 0))
+        assertEqual "Simplification involving zero" expected actual,
+      TestCase $ do
+        let expected = Prod (Num 3) (Pow (Var "x") (Num 2))
+        let actual = simplRep (Prod (Prod (Num 1) (Num 3)) (Pow (Var "x") (Num 2)))
+        assertEqual "Simplification involving multiplication and power" expected actual,
+      TestCase $ do
+        let expected = Num 2
+        let actual = simplRep (Sum (Num 1) (Neg (Neg (Neg (Neg (Num 1))))))
+        assertEqual "Simplification involving multiple negations" expected actual,
+      TestCase $ do
+        let expected = Pow (Sum (Var "x") (Num 4)) (Num 2)
+        let actual = simplRep (Pow (Sum (Var "x") (Sum (Num 1) (Num 3))) (Prod (Num 2) (Sum (Num 0) (Num 1))))
+        assertEqual "Simplification involving powers" expected actual
+    ]
 
 -- | Repeatedly applies 'simpl' until the expression no longer changes.
 simplRep :: Expr -> Expr
@@ -87,9 +141,45 @@ derivN :: Int -> String -> Expr -> Expr
 derivN 0 _ expr = expr
 derivN n var expr = derivN (n - 1) var (deriv var expr)
 
+-- | Evaluates a Taylor series for the given expression, variable, center, and deg.
+series :: Expr -> String -> Double -> Int -> Expr
+series expr var center deg = sumTerms 0
+  where
+    -- Calculates the n-th factorial.
+    fact :: Double -> Double
+    fact 0 = 1
+    fact n = n * fact (n - 1)
+
+    sumTerms :: Int -> Expr
+    sumTerms n
+      | n > deg = Num 0
+      | otherwise = Sum (term n) (sumTerms (n + 1))
+
+    term :: Int -> Expr
+    term n =
+      let coef = Num (1 / fact (fromIntegral n))
+          offset = sub (Var var) (Num center)
+          powerTerm = Pow offset (Num (fromIntegral n))
+          nthDeriv = repl (derivN n var expr) (Var var) (Num center)
+       in Prod (Prod nthDeriv coef) powerTerm
+
+-- | Test cases for the 'simpl' function.
+testSeries :: Test
+testSeries =
+  TestList
+    [ TestCase $ do
+        let expected = Sum (Num (-2)) (Sum (Prod (Num (-2)) (Sum (Var "x") (Num (-1)))) (Pow (Sum (Var "x") (Num (-1))) (Num 2)))
+        let actual = series (Sum (Pow (Var "x") (Num 2)) (Sum (Prod (Num (-4)) (Var "x")) (Num 1))) "x" 1 2
+        assertEqual "Taylor series expansion of x^2 - 4x + 1 at center x = 1, degree = 2" expected (simplRep actual)
+    ]
+
 main :: IO ()
 main = do
-  -- Example usage of 'repl'
-  let expr = Sum (Var "x") (Prod (Num 3) (Neg (Var "y")))
-  let subs = [(Var "x", Num 5), (Var "y", Num 2)]
-  print (simplRep (replAll expr subs))
+  result <-
+    runTestTT
+      ( TestList
+          [ TestLabel "Taylor series tests" testSeries,
+            TestLabel "Simplification tests" testSimplRep
+          ]
+      )
+  if failures result > 0 then Exit.exitFailure else Exit.exitSuccess
