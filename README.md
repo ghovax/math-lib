@@ -18,7 +18,7 @@ math-lib is a Haskell library for manipulating mathematical expressions represen
 | `series`   | Evaluate a Taylor series for an expression |
 | `mathf`    | Format mathematical expressions for readability |
 
-## Expr Data Type
+## `Expr` Data Type
 
 The `Expr` data type represents mathematical expressions in Haskell.
 

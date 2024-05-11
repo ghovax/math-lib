@@ -20,6 +20,16 @@
   (major1) == 1 && (major2) <  6 || \
   (major1) == 1 && (major2) == 6 && (minor) <= 2)
 #endif /* MIN_VERSION_HUnit */
+/* package MemoTrie-0.6.11 */
+#ifndef VERSION_MemoTrie
+#define VERSION_MemoTrie "0.6.11"
+#endif /* VERSION_MemoTrie */
+#ifndef MIN_VERSION_MemoTrie
+#define MIN_VERSION_MemoTrie(major1,major2,minor) (\
+  (major1) <  0 || \
+  (major1) == 0 && (major2) <  6 || \
+  (major1) == 0 && (major2) == 6 && (minor) <= 11)
+#endif /* MIN_VERSION_MemoTrie */
 /* package base-4.17.2.1 */
 #ifndef VERSION_base
 #define VERSION_base "4.17.2.1"
@@ -101,16 +111,6 @@
   (major1) == 0 && (major2) <  68 || \
   (major1) == 0 && (major2) == 68 && (minor) <= 8)
 #endif /* MIN_TOOL_VERSION_hsc2hs */
-/* tool pkg-config-0.29.2 */
-#ifndef TOOL_VERSION_pkg_config
-#define TOOL_VERSION_pkg_config "0.29.2"
-#endif /* TOOL_VERSION_pkg_config */
-#ifndef MIN_TOOL_VERSION_pkg_config
-#define MIN_TOOL_VERSION_pkg_config(major1,major2,minor) (\
-  (major1) <  0 || \
-  (major1) == 0 && (major2) <  29 || \
-  (major1) == 0 && (major2) == 29 && (minor) <= 2)
-#endif /* MIN_TOOL_VERSION_pkg_config */
 /* tool runghc-9.4.8 */
 #ifndef TOOL_VERSION_runghc
 #define TOOL_VERSION_runghc "9.4.8"
